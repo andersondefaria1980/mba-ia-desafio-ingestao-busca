@@ -25,5 +25,34 @@ PERGUNTA DO USUÁRIO:
 RESPONDA A "PERGUNTA DO USUÁRIO"
 """
 
+import os
+from dotenv import load_dotenv
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_postgres import PGVector
+from langchain_core.prompts import PromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+load_dotenv()
+for k in ("OPENAI_API_KEY", "PGVECTOR_URL","PGVECTOR_COLLECTION"):
+    if not os.getenv(k):
+        raise RuntimeError(f"Environment variable {k} is not set")
+
 def search_prompt(question=None):
-    pass
+  embeddings = GoogleGenerativeAIEmbeddings(model=os.getenv("GOOGLEAI_MODEL","gemini-embedding-001"))
+  store = PGVector(
+    embeddings=embeddings,
+    collection_name=os.getenv("PGVECTOR_COLLECTION"),
+    connection=os.getenv("PGVECTOR_URL"),
+    use_jsonb=True,
+  )  
+  results = store.similarity_search_with_score(question, k=10)  
+  question_template = PromptTemplate(
+    input_variables=["contexto", "pergunta"],
+    template=PROMPT_TEMPLATE
+  )
+  model = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.5)
+  chain = question_template | model
+  result = chain.invoke({"contexto": results, "pergunta": question})
+  return result.content
+
+    
